@@ -1,0 +1,178 @@
+<html>
+
+<head>
+
+    <style>
+        .btn {
+            cursor: pointer;
+            border: 2px solid black;
+            padding: 0.5rem 1rem;
+            background: white;
+            font-weight: 800;
+            margin: 0 0.1rem;
+        }
+
+        .btn:hover {
+            background: black;
+            color: white;
+        }
+
+        body {
+            margin: 0;
+        }
+
+        .head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding: 0.5rem 1rem;
+            box-shadow: 0px 2px 4px #0000002e;
+        }
+
+        .heading {
+            font-family: sans-serif;
+            font-weight: 600;
+            margin-right: 1rem;
+            text-transform: capitalize;
+            color: #0e0e0ebd;
+            padding: 0.6rem;
+        }
+    </style>
+</head>
+
+<body onload="plotData()">
+    <div class="head">
+        <div>
+            <span class="heading">Svm Model </span>
+            <button class="btn" onclick="changeTfandUpdate('5m')">5m</button>
+            <button class="btn" onclick="changeTfandUpdate('30m')">30m</button>
+            <button class="btn" onclick="changeTfandUpdate('1h')">1h</button>
+            <button class="btn" onclick="changeTfandUpdate('4h')">4h</button>
+            <span id="loading" class="heading"></span>
+        </div>
+        <div><span id="tf" class="heading"></span><button onclick="updatePlot('yes')" class="btn">Train</button><button
+                onclick="updatePlot()" class="btn">Update chart</button></div>
+    </div>
+    <div style="max-height:500px"><canvas id="myChart" width="400" height="500"></canvas></div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.2.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom-plus2@0.7.8/dist/chartjs-plugin-zoom-plus2.min.js"></script>
+    <script>
+
+        let x, dt, tf = '5m', ox;
+
+        async function fetcher(train) {
+            document.getElementById("loading").innerHTML = "Loading..";
+            let r = await fetch(`/prediction?tf=${tf}&train=${train}`)
+            let x = await r.json()
+            document.getElementById("loading").innerHTML = "";
+            return x
+        }
+        async function initDataFromFetch(t) {
+            let resp = await fetcher(t)
+            x = resp["data"]
+            dt = resp["closeTime"]
+            tf = resp["timeframe"]
+            ox = resp["orig"]
+            document.getElementById("tf").innerText = `Timeframe : ${tf}`
+        }
+        async function getDateLabels() {
+            const mapUnitToFx = {
+                'm': p => p * 60,
+                'h': p => p * 60 * 60
+            }
+            var tfs = mapUnitToFx[tf.slice(-1)](Number(tf.slice(0, -1)))
+            const DATA_COUNT = x.length;
+            const labels = [];
+            for (let i = 0; i < DATA_COUNT; ++i) {
+                labels.push(new Date(dt + i * tfs * 1000).toLocaleString());
+            }
+            return labels
+        }
+        async function updatePlot(t = 'no') {
+            await initDataFromFetch(t)
+            myChart.data.datasets[0].data = x
+            myChart.data.datasets[1].data = ox;
+            myChart.data.labels = await getDateLabels();
+            myChart.update()
+        }
+        async function changeTfandUpdate(tfs) {
+            tf = tfs
+            await updatePlot(t = 'yes')
+        }
+        
+        async function plotData() {
+            var ctx = document.getElementById('myChart').getContext('2d');
+            await initDataFromFetch()
+            const labels = await getDateLabels();
+            const data = {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Predicted Price',
+                        data: x,
+                        borderColor: "red",
+                        showGaps: true,
+                        borderWidth: 1,
+                        pointRadius: 1,
+                        pointHoverRadius: 2
+                    },
+                    {
+                        label: 'Price',
+                        data: ox,
+                        borderColor: "black",
+                        showGaps: true,
+                        borderWidth: 1,
+                        pointRadius: 1,
+                        pointHoverRadius: 2
+                    }
+
+                ]
+            };
+            const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Bitcoin Price prediction'
+                },
+                zoom: {
+                    zoom: {
+                        enabled: true,
+                        mode: 'xy',
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: false
+                    }
+                },
+                y: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Price_usd'
+                    }
+                }
+            },
+        };
+        const config = {
+            type: 'line',
+            data: data,
+            options: options
+
+        };
+            window.myChart = new window.Chart(ctx, config);
+         
+        }
+    </script>
+
+</body>
+
+</html>
